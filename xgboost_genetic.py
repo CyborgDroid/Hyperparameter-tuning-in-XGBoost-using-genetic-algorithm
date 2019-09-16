@@ -2,20 +2,38 @@
 # -*- coding: utf-8 -*-
 """
 @author: mohit jain
+@contributor: Glen-Erik Cortes (mlflow logging of models and runs)
 """
 
 '''
-We will use genetic algorithum to optimize hyperparameters for XGboost. 
+We will use genetic algorithm to optimize hyperparameters for XGboost. 
 '''
-
+#%%
 # Importing the libraries
 import numpy as np
 import pandas as pd
-import geneticXGboost #genetic algorithum module
+import geneticXGboost #genetic algorithm module
 import xgboost as xgb
+import mlflow
+import mlflow.pyfunc
+from  mlflow.exceptions import MlflowException
+from  mlflow.tracking import MlflowClient
+from datetime import date
+today = date.today()
 
+experimentPath = today.strftime("%Y%m%d")
+
+try:
+    experimentID = mlflow.create_experiment(experimentPath)
+except MlflowException:
+    print('getting experiment')
+    experimentID = MlflowClient().get_experiment_by_name(experimentPath).experiment_id
+    mlflow.set_experiment(experimentPath)
 
 np.random.seed(723)
+
+#%%
+# Importing the dataset
 '''
 The dataset is from https://archive.ics.uci.edu/ml/machine-learning-databases/musk/
 It contains a set of 102 molecules, out of which 39 are identified by humans as 
@@ -23,13 +41,13 @@ having odor that can be used in perfumery and 69 not having the desired odor.
 The dataset contains 6,590 low-energy conformations of these molecules, contianing 166 features.
 '''
 
-# Importing the dataset
 dataset = pd.read_csv('clean2.data', header=None)
 
 X = dataset.iloc[:, 2:168].values #discard first two coloums as these are molecule's name and conformation's name
 
 y = dataset.iloc[:, 168].values #extrtact last coloum as class (1 => desired odor, 0 => undesired odor)
 
+#%%
 # Splitting the dataset into the Training set and Test set
 from sklearn.model_selection import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.20, random_state = 97)
@@ -40,6 +58,7 @@ sc = StandardScaler()
 X_train = sc.fit_transform(X_train)
 X_test = sc.transform(X_test)
 
+#%%
 #XGboost Classifier
 
 #model xgboost
@@ -77,7 +96,7 @@ for generation in range(numberOfGenerations):
     print("This is number %s generation" % (generation))
     
     #train the dataset and obtain fitness
-    fitnessValue = geneticXGboost.train_population(population=population, dMatrixTrain=xgDMatrix, dMatrixtest=xgbDMatrixTest, y_test=y_test)
+    fitnessValue = geneticXGboost.train_population(population=population, generation=generation, dMatrixTrain=xgDMatrix, dMatrixtest=xgbDMatrixTest, y_train=y_train, y_test=y_test)
     fitnessHistory[generation, :] = fitnessValue
     
     #best score in the current iteration
@@ -98,13 +117,17 @@ for generation in range(numberOfGenerations):
     '''
     population[0:parents.shape[0], :] = parents #fittest parents
     population[parents.shape[0]:, :] = children_mutated #children
-    
+
+
+    # run_id = mlflow.active_run().info.run_uuid
+    # print("Run with id %s finished" % run_id)
+            
     populationHistory[(generation+1)*numberOfParents : (generation+1)*numberOfParents+ numberOfParents , :] = population #srore parent information
     
 
 #Best solution from the final iteration
 
-fitness = geneticXGboost.train_population(population=population, dMatrixTrain=xgDMatrix, dMatrixtest=xgbDMatrixTest, y_test=y_test)
+fitness = geneticXGboost.train_population(population=population, generation=generation+1, dMatrixTrain=xgDMatrix, dMatrixtest=xgbDMatrixTest, y_train=y_train, y_test=y_test)
 fitnessHistory[generation+1, :] = fitness
 
 #index of the best solution
@@ -123,9 +146,7 @@ print('gamma', population[bestFitnessIndex][4])
 print('subsample', population[bestFitnessIndex][5])
 print('colsample_bytree', population[bestFitnessIndex][6])
 
-
 #visualize the change in fitness of the various generations and parents
-
 
 geneticXGboost.plot_parameters(numberOfGenerations, numberOfParents, fitnessHistory, "fitness (F1-score)")
 
@@ -150,3 +171,19 @@ geneticXGboost.plot_parameters(numberOfGenerations, numberOfParents, gammaHistor
 geneticXGboost.plot_parameters(numberOfGenerations, numberOfParents, subsampleHistory, "subsample")
 geneticXGboost.plot_parameters(numberOfGenerations, numberOfParents, colsampleByTreeHistory, "col sample by history")
 
+#%%
+import mlflow.sklearn
+# log best models from last generation
+with mlflow.start_run(run_name='XGBoostGA'):
+    mlflow.set_tag('type', 'result')
+    for i, p in enumerate(parents):
+            # Saving the model as an artifact.
+        mlflow.sklearn.log_model(p, "model_"+str(i+1))
+    run_id = mlflow.active_run().info.run_uuid
+    print("Run with id %s finished" % run_id)
+
+#%%
+
+
+
+#%%
