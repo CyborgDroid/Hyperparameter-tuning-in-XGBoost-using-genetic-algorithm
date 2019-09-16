@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 @author: mohit jain
+@contributor: Glen-Erik Cortes (mlflow logging of models and runs)
 """
 
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, mean_squared_error
 import numpy as np
 import random
 import xgboost as xgb
 import matplotlib.pyplot as plt
+import mlflow
 
 
 random.seed(723)
@@ -44,23 +46,40 @@ def fitness_f1score(y_true, y_pred):
     return fitness
 
 #train the data annd find fitness score
-def train_population(population, dMatrixTrain, dMatrixtest, y_test):
+def train_population(population, generation, dMatrixTrain, dMatrixtest, y_train, y_test):
     fScore = []
     for i in range(population.shape[0]):
-        param = { 'objective':'binary:logistic',
-              'learning_rate': population[i][0],
-              'n_estimators': population[i][1], 
-              'max_depth': int(population[i][2]), 
-              'min_child_weight': population[i][3],
-              'gamma': population[i][4], 
-              'subsample': population[i][5],
-              'colsample_bytree': population[i][6],
-              'seed': 24}
-        num_round = 100
-        xgbT = xgb.train(param, dMatrixTrain, num_round)
-        preds = xgbT.predict(dMatrixtest)
-        preds = preds>0.5
-        fScore.append(fitness_f1score(y_test, preds))
+        with mlflow.start_run(run_name='XGBoostGA'):
+            param = { 'objective':'binary:logistic', #insert fitness function here
+                'booster': 'gbtree',
+                'learning_rate': population[i][0],
+                'n_estimators': population[i][1], 
+                'max_depth': int(population[i][2]), 
+                'min_child_weight': population[i][3],
+                'gamma': population[i][4], 
+                'subsample': population[i][5],
+                'colsample_bytree': population[i][6],
+                'seed': 24}
+            mlflow.log_params(param)
+            mlflow.set_tag('type', 'evolution')
+            num_round = 100
+            mlflow.log_param('num_round', 100)
+            xgbT = xgb.train(param, dMatrixTrain, num_round)
+            train_preds = xgbT.predict(dMatrixTrain)
+            train_preds = train_preds>0.5
+            test_preds = xgbT.predict(dMatrixtest)
+            test_preds = test_preds>0.5
+            mlflow.log_param('generation', generation)
+            mlflow.log_param('gen_model_id', i)
+            train_f_score = fitness_f1score(y_train, train_preds)
+            train_rmse = mean_squared_error(y_train, train_preds)**0.5
+            test_f_score = fitness_f1score(y_test, test_preds)
+            test_rmse = mean_squared_error(y_test, test_preds)**0.5
+            mlflow.log_metric('train_rmse',train_rmse) 
+            mlflow.log_metric('train_F1Score',train_f_score)
+            mlflow.log_metric('test_rmse',test_rmse) 
+            mlflow.log_metric('test_F1Score',test_f_score)
+            fScore.append(test_f_score)        
     return fScore
 
 
