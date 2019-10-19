@@ -178,13 +178,25 @@ with mlflow.start_run(experiment_id=experimentID, run_name='XGBoostGA', nested=T
     geneticXGboost.plot_parameters(numberOfGenerations, numberOfParents, subsampleHistory, "subsample")
     geneticXGboost.plot_parameters(numberOfGenerations, numberOfParents, colsampleByTreeHistory, "col sample by history")
 
-    import mlflow.sklearn
+    # Create a Conda environment for the new MLflow Model that contains the XGBoost library
+    # as a dependency, as well as the required CloudPickle library
+    import cloudpickle
+    conda_env = {
+        'channels': ['defaults'],
+        'dependencies': [
+        'xgboost={}'.format(xgb.__version__),
+        'cloudpickle={}'.format(cloudpickle.__version__),
+        ],
+        'name': 'xgb_env'
+    }
+
+    import mlflow.pyfunc
     # log best models from last generation
     mlflow.set_tag('type', 'result')
     mlflow.set_tag('output', 'saved models')
     for i, p in enumerate(parents):
             # Saving the model as an artifact.
-        mlflow.sklearn.log_model(p, "model_"+str(i+1))
+        mlflow.pyfunc.log(p, "model_"+str(i+1))
     run_id = mlflow.active_run().info.run_uuid
     print("Run with id %s finished" % run_id)
     mlflow.end_run()
