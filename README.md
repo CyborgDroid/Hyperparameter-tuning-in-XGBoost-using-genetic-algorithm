@@ -8,7 +8,7 @@ The dataset contains 6,590 low-energy conformations of these molecules, contiani
 
 For GPU enabled computers:
 ```
-conda xgboostga create -f environment.yml
+conda env create -f environment.yaml
 ```
 
 or create from scratch:
@@ -26,3 +26,21 @@ For CPU only:
 ```
 conda install -c conda-forge xgboost 
 ```
+
+## See Results ##
+In the terminal folder for the project type:
+```
+mlflow ui
+```
+go to localhost:5000
+
+![alt text](docs/images/collapsed.png)
+
+Expand the experiment to see all of the nested runs:
+
+![alt text](docs/images/expanded.png)
+
+Select all runs you want to compare and analyze the parameters that yielded the best results. Here we see that learning rates between 0.4 and 0.65 were consistently the best.
+
+![alt text](docs/images/MLFlow-results.png)
+

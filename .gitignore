@@ -1,3 +1,4 @@
 .vscode
+.DS_Store
 __pycache__
-clean2.data
+mlruns
